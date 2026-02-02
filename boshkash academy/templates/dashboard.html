@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Boshkash Academy</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+
+    <!-- Tabulator for Excel-like Tables -->
+    <link href="https://unpkg.com/tabulator-tables/dist/css/tabulator_midnight.min.css" rel="stylesheet">
+    <script type="text/javascript" src="https://unpkg.com/tabulator-tables/dist/js/tabulator.min.js"></script>
+
+    <style>
+        /* Tabulator Customization */
+        .tabulator {
+            border: none;
+            background-color: transparent !important;
+        }
+
+        .tabulator-header {
+            background-color: var(--bg-card) !important;
+            border-bottom: 1px solid var(--glass-border) !important;
+            color: var(--text-muted) !important;
+        }
+
+        .tabulator-row {
+            background-color: transparent !important;
+            color: var(--text-light) !important;
+            border-bottom: 1px solid var(--glass-border) !important;
+        }
+
+        .tabulator-row:hover {
+            background-color: rgba(255, 255, 255, 0.05) !important;
+        }
+
+        .tabulator-cell {
+            border-right: none !important;
+        }
+
+        .tabulator input {
+            background: #0f172a;
+            color: white;
+            border: 1px solid #333;
+        }
+    </style>
+    <link rel="manifest" href="/static/manifest.json">
+    <meta name="theme-color" content="#00ff88">
+    <link rel="apple-touch-icon" href="/static/img/icon-192.png">
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/static/sw.js');
+        }
+    </script>
+</head>
+
+<body>
+    <div class="dashboard-layout">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="brand">
+                <i class="fas fa-futbol"></i> Boshkash
+            </div>
+
+            <ul class="nav-links">
+                <li><a href="#" class="nav-link active" onclick="switchTab('dashboard')"><i
+                            class="fas fa-chart-line"></i> Dashboard</a></li>
+                <li><a href="#" class="nav-link" onclick="switchTab('players')"><i class="fas fa-users"></i> Players</a>
+                </li>
+                <li><a href="#" class="nav-link" onclick="switchTab('finance')"><i
+                            class="fas fa-file-invoice-dollar"></i> Finance</a></li>
+                <li><a href="#" class="nav-link" onclick="switchTab('files')"><i class="fas fa-folder"></i> Files</a>
+                </li>
+            </ul>
+
+            <button onclick="logout()" class="btn logout-btn">
+                <i class="fas fa-sign-out-alt"></i> Logout
+            </button>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Header -->
+            <header class="header-flex">
+                <h2 id="pageTitle">Overview</h2>
+                <div class="header-actions">
+                    <div class="user-badge">
+                        <i class="fas fa-user-circle"></i> {{ user.username }}
+                    </div>
+                </div>
+            </header>
+
+            <!-- Views -->
+
+            <!-- Dashboard View -->
+            <div id="view-dashboard" class="fade-in">
+                <div class="stats-grid">
+                    <div class="glass-panel stat-card">
+                        <div class="stat-icon"><i class="fas fa-users"></i></div>
+                        <div class="stat-info">
+                            <h3>Total Players</h3>
+                            <div class="value" id="stat-players">-</div>
+                        </div>
+                    </div>
+                    <div class="glass-panel stat-card">
+                        <div class="stat-icon stat-icon-warning"><i class="fas fa-receipt"></i></div>
+                        <div class="stat-info">
+                            <h3>Active Subs</h3>
+                            <div class="value" id="stat-subs">-</div>
+                        </div>
+                    </div>
+                    <div class="glass-panel stat-card">
+                        <div class="stat-icon stat-icon-success"><i class="fas fa-dollar-sign"></i></div>
+                        <div class="stat-info">
+                            <h3>Revenue</h3>
+                            <div class="value" id="stat-revenue">$ -</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Players View -->
+            <div id="view-players" class="fade-in hidden">
+                <div class="glass-panel table-container">
+                    <div class="table-header">
+                        <h3>All Players</h3>
+                        <button class="btn btn-primary w-auto" onclick="openPlayerModal()">
+                            <i class="fas fa-plus"></i> Add Player
+                        </button>
+                    </div>
+                    <div id="players-table"></div>
+                </div>
+            </div>
+
+            <!-- Finance View -->
+            <div id="view-finance" class="fade-in hidden">
+                <div class="glass-panel table-container">
+                    <div class="table-header">
+                        <h3>Subscriptions & Invoices</h3>
+                        <button class="btn btn-primary w-auto" onclick="openSubModal()">
+                            <i class="fas fa-plus"></i> Add Subscription
+                        </button>
+                    </div>
+                    <div id="finance-table"></div>
+                </div>
+            </div>
+
+            <!-- Files View -->
+            <div id="view-files" class="fade-in hidden">
+                <div class="glass-panel" style="padding: 1.5rem;">
+                    <h3>File Management</h3>
+                    <div class="modal-grid" style="margin-top: 1rem; grid-template-columns: 300px 1fr;">
+                        <!-- Left: Player Selection -->
+                        <div style="border-right: 1px solid var(--glass-border); padding-right: 1rem;">
+                            <h4 style="margin-bottom: 1rem; color: var(--text-muted);">Select Player</h4>
+                            <select id="file-player-select" class="form-control" onchange="loadPlayerFiles(this.value)">
+                                <option value="">Select a player...</option>
+                            </select>
+
+                            <div id="upload-area" class="hidden" style="margin-top: 2rem;">
+                                <h4 style="margin-bottom: 1rem; color: var(--text-muted);">Upload File</h4>
+                                <form id="fileForm">
+                                    <input type="hidden" name="player_id" id="upload-player-id">
+                                    <div class="form-group">
+                                        <input type="file" name="file" class="form-control" required>
+                                    </div>
+                                    <button type="submit" class="btn btn-primary">Upload <i
+                                            class="fas fa-upload"></i></button>
+                                </form>
+                            </div>
+                        </div>
+
+                        <!-- Right: File List -->
+                        <div style="padding-left: 1rem;">
+                            <h4 style="margin-bottom: 1rem; color: var(--text-muted);">Files</h4>
+                            <div id="file-list" style="display: grid; gap: 1rem;">
+                                <p class="text-muted">Select a player to view files.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- Add Player Modal -->
+    <div id="playerModal" class="modal">
+        <div class="modal-content glass-panel">
+            <button class="close-modal" aria-label="Close Modal" onclick="closePlayerModal()">&times;</button>
+            <h2 style="margin-bottom: 1.5rem;">Add New Player</h2>
+            <form id="playerForm">
+                <div class="modal-grid">
+                    <div class="form-group">
+                        <label for="inp-fullname">Full Name</label>
+                        <input type="text" id="inp-fullname" class="form-control" name="full_name" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="inp-age">Age</label>
+                        <input type="number" id="inp-age" class="form-control" name="age" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="inp-position">Position</label>
+                        <select id="inp-position" class="form-control" name="position">
+                            <option value="Forward">Forward</option>
+                            <option value="Midfielder">Midfielder</option>
+                            <option value="Defender">Defender</option>
+                            <option value="Goalkeeper">Goalkeeper</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="inp-team">Team</label>
+                        <input type="text" id="inp-team" class="form-control" name="team">
+                    </div>
+                    <div class="form-group">
+                        <label for="inp-phone">Phone</label>
+                        <input type="text" id="inp-phone" class="form-control" name="phone">
+                    </div>
+                    <div class="form-group">
+                        <label for="inp-parent">Parent Name</label>
+                        <input type="text" id="inp-parent" class="form-control" name="parent_name">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="inp-notes">Medical Notes</label>
+                    <textarea id="inp-notes" class="form-control" name="medical_notes" rows="3"></textarea>
+                </div>
+                <button type="submit" class="btn btn-primary">Save Player</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add Subscription Modal -->
+    <div id="subModal" class="modal">
+        <div class="modal-content glass-panel">
+            <button class="close-modal" aria-label="Close Modal" onclick="closeSubModal()">&times;</button>
+            <h2 style="margin-bottom: 1.5rem;">Add Subscription</h2>
+            <form id="subForm">
+                <div class="form-group">
+                    <label>Player</label>
+                    <select id="sub-player-select" class="form-control" name="player_id" required>
+                        <!-- Populated by JS -->
+                    </select>
+                </div>
+                <div class="modal-grid">
+                    <div class="form-group">
+                        <label>Amount (EGP)</label>
+                        <input type="number" step="0.01" class="form-control" name="amount" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Type / Note</label>
+                        <input type="text" class="form-control" name="type" placeholder="e.g. Monthly Jan" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Start Date</label>
+                        <input type="date" class="form-control" name="start_date" required>
+                    </div>
+                    <div class="form-group">
+                        <label>End Date</label>
+                        <input type="date" class="form-control" name="end_date" required>
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary">Save & Pay</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // --- Navigation ---
+        function switchTab(tabId) {
+            // Update Sidebar
+            document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+            event.currentTarget.classList.add('active');
+
+            // Hide all views
+            ['dashboard', 'players', 'finance', 'files'].forEach(id => {
+                const el = document.getElementById('view-' + id);
+                if (el) el.classList.add('hidden');
+            });
+
+            // Show target
+            const target = document.getElementById('view-' + tabId);
+            if (target) {
+                target.classList.remove('hidden');
+                document.getElementById('pageTitle').textContent = tabId.charAt(0).toUpperCase() + tabId.slice(1);
+
+                // Load data
+                if (tabId === 'dashboard') loadStats();
+                if (tabId === 'players') loadPlayers();
+                if (tabId === 'finance') loadFinance();
+                if (tabId === 'files') loadFilesInit();
+            }
+        }
+
+        // --- Stats ---
+        async function loadStats() {
+            try {
+                const res = await fetch('/api/dashboard/stats');
+                const data = await res.json();
+                document.getElementById('stat-players').textContent = data.player_count;
+                document.getElementById('stat-subs').textContent = data.active_subscriptions;
+                document.getElementById('stat-revenue').textContent = '$' + data.total_revenue;
+            } catch (e) {
+                console.error("Error loading stats", e);
+            }
+        }
+
+        // --- Players ---
+        let table;
+
+        function loadPlayers() {
+            if (table) {
+                table.setData("/api/players");
+                return;
+            }
+
+            table = new Tabulator("#players-table", {
+                ajaxURL: "/api/players",
+                layout: "fitColumns",
+                responsiveLayout: "collapse",
+                pagination: "local",
+                paginationSize: 10,
+                columns: [
+                    { title: "Name", field: "full_name", editor: "input" },
+                    { title: "Age", field: "age", width: 70, editor: "number" },
+                    { title: "Position", field: "position", editor: "input" },
+                    { title: "Team", field: "team", editor: "input" },
+                    { title: "Phone", field: "phone", editor: "input" },
+                    {
+                        title: "Actions", formatter: function (cell, formatterParams) {
+                            return "<button class='btn btn-danger btn-sm'>Delete</button>";
+                        }, cellClick: function (e, cell) {
+                            if (confirm('Delete player?')) {
+                                deletePlayer(cell.getRow().getData().id);
+                            }
+                        }
+                    }
+                ],
+            });
+
+            // Handle Inline Edit Saving
+            table.on("cellEdited", function (cell) {
+                const data = cell.getRow().getData();
+                updatePlayer(data.id, data);
+            });
+        }
+
+        async function updatePlayer(id, data) {
+            await fetch('/api/players/' + id, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+        }
+
+        async function deletePlayer(id) {
+            await fetch('/api/players/' + id, { method: 'DELETE' });
+            table.setData("/api/players"); // Refresh
+        }
+
+        // --- Finance ---
+        let financeTable;
+
+        function loadFinance() {
+            if (financeTable) {
+                financeTable.setData("/api/subscriptions");
+                return;
+            }
+
+            financeTable = new Tabulator("#finance-table", {
+                ajaxURL: "/api/subscriptions",
+                layout: "fitColumns",
+                pagination: "local",
+                paginationSize: 10,
+                columns: [
+                    { title: "Player", field: "player_name" },
+                    { title: "Type/Note", field: "type" },
+                    { title: "Amount", field: "amount", formatter: "money", formatterParams: { symbol: "$" } },
+                    { title: "Start", field: "start_date" },
+                    { title: "End", field: "end_date" },
+                    {
+                        title: "Status", field: "status", formatter: function (cell) {
+                            const val = cell.getValue();
+                            return `<span class="badge badge-${val === 'active' ? 'success' : 'warning'}">${val}</span>`;
+                        }
+                    },
+                    {
+                        title: "Actions", formatter: function (cell) {
+                            return `
+                        <div style="display:flex; gap:5px;">
+                            <button class="btn btn-sm" style="background:var(--secondary-color);" onclick="downloadInvoice(${cell.getRow().getData().payments[0]?.id})"><i class="fas fa-file-invoice"></i></button>
+                            <button class="btn btn-danger btn-sm" onclick="deleteSub(${cell.getRow().getData().id})"><i class="fas fa-trash"></i></button>
+                        </div>
+                        `;
+                        }
+                    }
+                ],
+            });
+        }
+
+        async function deleteSub(id) {
+            if (!confirm("Delete Subscription?")) return;
+            await fetch('/api/subscriptions/' + id, { method: 'DELETE' });
+            financeTable.setData("/api/subscriptions");
+            loadStats();
+        }
+
+        function downloadInvoice(paymentId) {
+            if (!paymentId) { alert("No payment record found"); return; }
+            window.open(`/api/payments/${paymentId}/invoice`, '_blank');
+        }
+
+        // Sub Modal
+        const subModal = document.getElementById('subModal');
+        async function openSubModal() {
+            // Load players into select
+            const res = await fetch('/api/players');
+            const players = await res.json();
+            const select = document.getElementById('sub-player-select');
+            select.innerHTML = '<option value="">Select Player...</option>' +
+                players.map(p => `<option value="${p.id}">${p.full_name}</option>`).join('');
+
+            subModal.classList.add('active');
+        }
+        function closeSubModal() { subModal.classList.remove('active'); }
+
+        document.getElementById('subForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const data = Object.fromEntries(formData.entries());
+
+            try {
+                const res = await fetch('/api/subscriptions', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+
+                const result = await res.json();
+
+                if (result.success) {
+                    closeSubModal();
+                    e.target.reset();
+                    if (financeTable) financeTable.setData("/api/subscriptions");
+                    loadStats();
+
+                    // Auto-open Invoice
+                    if (result.subscription.last_payment_id) {
+                        if (confirm("Subscription added! View Invoice now?")) {
+                            downloadInvoice(result.subscription.last_payment_id);
+                        }
+                    }
+                } else {
+                    alert("Error: " + (result.message || "Unknown error"));
+                }
+            } catch (err) {
+                console.error(err);
+                alert("Failed to add subscription.");
+            }
+        });
+
+        // --- Files ---
+        async function loadFilesInit() {
+            // Load players for selection
+            const res = await fetch('/api/players');
+            const players = await res.json();
+            const select = document.getElementById('file-player-select');
+            select.innerHTML = '<option value="">Select Player...</option>' +
+                players.map(p => `<option value="${p.id}">${p.full_name}</option>`).join('');
+        }
+
+        async function loadPlayerFiles(playerId) {
+            const list = document.getElementById('file-list');
+            const uploadArea = document.getElementById('upload-area');
+            const uploadPlayerId = document.getElementById('upload-player-id');
+
+            if (!playerId) {
+                list.innerHTML = '<p class="text-muted">Select a player to view files.</p>';
+                uploadArea.classList.add('hidden');
+                return;
+            }
+
+            uploadArea.classList.remove('hidden');
+            uploadPlayerId.value = playerId;
+
+            const res = await fetch(`/api/players/${playerId}/files`);
+            const files = await res.json();
+
+            if (files.length === 0) {
+                list.innerHTML = '<p class="text-muted">No files found for this player.</p>';
+            } else {
+                list.innerHTML = files.map(f => `
+                    <div class="glass-panel" style="padding:1rem; display:flex; justify-content:space-between; align-items:center;">
+                        <div>
+                            <div style="font-weight:600;">${f.file_path.split('/').pop()}</div> <!-- Show filename -->
+                            <div style="font-size:0.8rem; color:var(--text-muted);">${new Date(f.uploaded_at).toLocaleDateString()}</div>
+                        </div>
+                        <div style="display:flex; gap:0.5rem;">
+                            <a href="/api/files/${f.id}/download" class="btn btn-sm btn-primary" target="_blank"><i class="fas fa-download"></i></a>
+                            <button class="btn btn-sm btn-danger" onclick="deleteFile(${f.id}, ${playerId})"><i class="fas fa-trash"></i></button>
+                        </div>
+                    </div>
+                `).join('');
+            }
+        }
+
+        document.getElementById('fileForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+
+            const res = await fetch('/api/files/upload', {
+                method: 'POST',
+                body: formData
+            });
+
+            if (res.ok) {
+                e.target.reset();
+                loadPlayerFiles(document.getElementById('upload-player-id').value);
+            } else {
+                alert("Upload failed");
+            }
+        });
+
+        async function deleteFile(fileId, playerId) {
+            if (!confirm("Delete file?")) return;
+            await fetch('/api/files/' + fileId, { method: 'DELETE' });
+            loadPlayerFiles(playerId);
+        }
+
+        // --- Modals (Global) ---
+        const playerModal = document.getElementById('playerModal');
+        function openPlayerModal() { playerModal.classList.add('active'); }
+        function closePlayerModal() { playerModal.classList.remove('active'); }
+
+        document.getElementById('playerForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const data = Object.fromEntries(formData.entries());
+
+            const res = await fetch('/api/players', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+
+            if (res.ok) {
+                closePlayerModal();
+                e.target.reset();
+                if (table) table.setData("/api/players");
+                loadStats(); // Update stats
+            }
+        });
+
+        // --- Auth ---
+        async function logout() {
+            await fetch('/api/logout', { method: 'POST' });
+            window.location.href = '/';
+        }
+
+        // Init
+        loadStats();
+    </script>
+</body>
+
+</html>
