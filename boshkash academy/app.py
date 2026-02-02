@@ -7,8 +7,12 @@ from config import Config
 from werkzeug.security import generate_password_hash
 import os
 
-# Fix for Vercel paths
+# Fix for Vercel paths - ensure we look at the project root
 base_dir = os.path.abspath(os.path.dirname(__file__))
+# If running from 'api' folder (Vercel), go up one level
+if os.path.basename(base_dir) == 'api':
+    base_dir = os.path.dirname(base_dir)
+
 template_dir = os.path.join(base_dir, 'templates')
 static_dir = os.path.join(base_dir, 'static')
 
